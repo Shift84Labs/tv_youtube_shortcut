@@ -14,7 +14,7 @@ Every failure below was hit while building this, not imagined.
 | `adb pair` hangs forever | Used the connect port, or the code expired | Re-read both ports, keep the pairing screen open |
 | `sdkmanager` download 404s | Stale cmdline-tools build number | Skip it, resolve names from `repository2-3.xml` |
 | `aapt add -q` → "Unknown flag" | `aapt` v1 has no `-q`, unlike `aapt2` | Drop the flag |
-| Tile launches YouTube but plays nothing | The video/stream was deleted, went private, or a livestream ended | Rebuild against a playlist or channel instead |
+| Tile launches YouTube but plays nothing | The video was deleted or went private, or a live stream ended (24/7 streams restart under new ids) | Rebuild against the channel's live address, or a playlist |
 | Tile missing from home screen | Appended to the end of the apps row | Scroll right; use Reorder / Move to Front |
 | Cannot reach the device after a reboot | Wireless debugging ports rotate | Re-pair. Installed tiles are unaffected |
 
@@ -49,7 +49,7 @@ The app opens and you get **"Something went wrong - This live stream recording i
 
 The target itself is gone. Most often:
 
-- a **livestream ended** and the creator did not keep the recording
+- a **live stream ended** and the creator did not keep the recording. "24/7" streams do this routinely: they are back-to-back long streams, and each restart gets a new video id
 - the video was deleted or set to private
 - the video became region-locked
 
@@ -60,9 +60,27 @@ curl -s -o /dev/null -w "%{http_code}\n" \
   "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=<video_id>&format=json"
 ```
 
-`404` means it is gone outright. Note that a **200 does not mean it is playable**: an ended livestream keeps its oEmbed metadata while the recording itself is unavailable, so check the TV or the watch page too.
+`404` means it is gone outright. Note that a **200 does not mean it is playable**: an ended live stream keeps its oEmbed metadata while the recording itself is unavailable.
 
-**The fix is to stop pointing at a single video.** Build against a playlist, or a channel's uploads playlist, which keeps working as its contents change:
+The watch page HTML has the real state:
+
+```bash
+curl -s -H "User-Agent: Mozilla/5.0" "https://www.youtube.com/watch?v=<video_id>" \
+  | grep -oE '"isLiveNow":(true|false)|"playabilityStatus":\{"status":"[A-Z_]+"|"endTimestamp":"[^"]+"' \
+  | sort -u
+```
+
+`UNPLAYABLE` plus an `endTimestamp` is an ended stream.
+
+**The fix is to stop pointing at a single video id.**
+
+For a live channel, build against its live address, which YouTube resolves to whatever is live when the tile is pressed:
+
+```bash
+./build_shortcut.sh "https://www.youtube.com/channel/UCxxxxxxxxxxxxxxxxxxxxxx/live" "Label" <ip>:<port>
+```
+
+For recorded content, build against a playlist, or a channel's uploads playlist, which keeps working as its contents change:
 
 ```bash
 ./build_shortcut.sh UCxxxxxxxxxxxxxxxxxxxxxx "Label" <ip>:<port>

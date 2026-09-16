@@ -30,6 +30,14 @@ check 'UCG2CL6EUjG8TVT1Tpl9nJdg'                     "playlist UUG2CL6EUjG8TVT1T
 # list= must win over v=: pasting a watch-in-playlist URL should build a playlist tile
 check "$V=dQw4w9WgXcQ&list=PLtest123"                "playlist PLtest123 $P=PLtest123"
 
+# channel live pages stay URLs, so the tile follows stream restarts
+L=https://www.youtube.com
+check "$L/@msrachel/live"                            "live @msrachel $L/@msrachel/live"
+check "$L/@msrachel/live?si=abc"                     "live @msrachel $L/@msrachel/live"
+check "$L/channel/UCG2CL6EUjG8TVT1Tpl9nJdg/live/"    "live UCG2CL6EUjG8TVT1Tpl9nJdg $L/channel/UCG2CL6EUjG8TVT1Tpl9nJdg/live"
+# ...but /live/<video id> is still a single video
+check "$L/live/jBvzOfT8_44?si=xyz"      "video jBvzOfT8_44 $V=jBvzOfT8_44"
+
 # garbage must fail loudly rather than build a broken tile
 if "$B" --print-url 'https://www.youtube.com/feed/subscriptions' >/dev/null 2>&1; then
   echo "FAIL unparseable youtube URL should have errored"; fail=1

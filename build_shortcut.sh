@@ -12,6 +12,8 @@
 #   https://www.youtube.com/watch?v=...         any youtube URL, including
 #   https://www.youtube.com/live/...            live, shorts, embed, youtu.be
 #   https://www.youtube.com/playlist?list=...   and watch URLs carrying a list=
+#   https://www.youtube.com/@handle/live        whatever the channel has live at
+#   https://www.youtube.com/channel/UC.../live  the moment the tile is pressed
 #
 # Env:
 #   YT_TARGET   <package>/<activity> of the YouTube app to hand the link to.
@@ -28,6 +30,17 @@ parse_target() {
   local t="$1" id=""
   case "$t" in
     *youtube.com/*|*youtu.be/*|*youtube-nocookie.com/*)
+      # Channel live page (/@handle/live, /channel/UC.../live): "live" is the last
+      # path segment. Kept as a URL so YouTube resolves it to whatever is live now;
+      # a 24/7 stream gets a new video id every time it restarts.
+      local path="${t%%[?#]*}"; path="${path%/}"
+      if [ "${path##*/}" = live ]; then
+        local owner="${path%/live}"; owner="${owner##*/}"
+        case "$owner" in
+          @*)  KIND=live; ID="$owner"; URL="https://www.youtube.com/$owner/live";         return 0 ;;
+          UC*) KIND=live; ID="$owner"; URL="https://www.youtube.com/channel/$owner/live"; return 0 ;;
+        esac
+      fi
       # A list= wins over v=: a watch URL carrying a playlist becomes a playlist
       # tile, which is almost always what someone pasting that link wants.
       id="$(printf '%s' "$t" | grep -oE '[?&]list=[A-Za-z0-9_-]+' | head -1 | cut -d= -f2 || true)"
@@ -105,21 +118,30 @@ YT_ACT="${YT_TARGET#*/}"
   || { echo "YT_TARGET must be <package>/<activity>, got: $YT_TARGET" >&2; exit 1; }
 
 # Ids contain - and _, which are illegal in a java package segment.
-PREFIX=v; [ "$KIND" = playlist ] && PREFIX=p
+PREFIX=v; [ "$KIND" = playlist ] && PREFIX=p; [ "$KIND" = live ] && PREFIX=l
 PKG="dev.shift84labs.ytshortcut.$PREFIX$(echo "$ID" | tr -c '[:alnum:]' '_')"
 
 W="$(mktemp -d)"
 trap 'rm -rf "$W"' EXIT
 mkdir -p "$W/res/drawable" "$W/src/shortcut" "$W/classes" "$W/dex" "$OUT"
 
-# A playlist has no thumbnail of its own, so use its first video's.
-if [ "$KIND" = playlist ]; then
-  THUMB_VID="$(curl -fsSL "$URL" \
-    | grep -oE '"videoId":"[A-Za-z0-9_-]{11}"' | head -1 | cut -d'"' -f4 || true)"
-  [ -n "$THUMB_VID" ] || { echo "could not read playlist $ID, is it public?" >&2; exit 1; }
-else
-  THUMB_VID="$ID"
-fi
+# Playlists and live pages have no thumbnail of their own, so borrow one.
+case "$KIND" in
+  playlist)   # its first entry
+    THUMB_VID="$(curl -fsSL "$URL" \
+      | grep -oE '"videoId":"[A-Za-z0-9_-]{11}"' | head -1 | cut -d'"' -f4 || true)"
+    [ -n "$THUMB_VID" ] || { echo "could not read playlist $ID, is it public?" >&2; exit 1; } ;;
+  live)       # the current stream, or any video on the channel page if nothing is live
+    PAGE="$(curl -fsSL -H 'User-Agent: Mozilla/5.0' "$URL" || true)"
+    THUMB_VID="$(printf '%s' "$PAGE" \
+      | grep -oE '<link rel="canonical" href="[^"]*watch\?v=[A-Za-z0-9_-]{11}' \
+      | head -1 | grep -oE '[A-Za-z0-9_-]{11}$' || true)"
+    [ -n "$THUMB_VID" ] || THUMB_VID="$(printf '%s' "$PAGE" \
+      | grep -oE '"videoId":"[A-Za-z0-9_-]{11}"' | head -1 | cut -d'"' -f4 || true)"
+    [ -n "$THUMB_VID" ] || { echo "could not read $URL" >&2; exit 1; } ;;
+  *)
+    THUMB_VID="$ID" ;;
+esac
 
 # mqdefault.jpg is served at exactly 320x180, the Android TV banner size.
 curl -fsSL -o "$W/res/drawable/banner.jpg" "https://i.ytimg.com/vi/$THUMB_VID/mqdefault.jpg"
@@ -149,17 +171,18 @@ if [ ! -f "$KS" ]; then
     -validity 10950 -alias shortcut -dname "CN=tv_youtube_shortcut" 2>/dev/null
 fi
 
+APK="$OUT/$ID.apk"; [ "$KIND" = live ] && APK="$OUT/live_${ID#@}.apk"
 "$BT/zipalign" -f 4 "$W/unsigned.apk" "$W/aligned.apk"
 "$BT/apksigner" sign --ks "$KS" --ks-pass pass:shortcut --ks-key-alias shortcut \
-  --out "$OUT/$ID.apk" "$W/aligned.apk"
+  --out "$APK" "$W/aligned.apk"
 
-echo "built: $OUT/$ID.apk ($(stat -c%s "$OUT/$ID.apk") bytes)"
+echo "built: $APK ($(stat -c%s "$APK") bytes)"
 echo "  kind        : $KIND"
 echo "  opens       : $URL"
 echo "  app package : $PKG"
 echo "  via         : $YT_PKG"
 
 if [ -n "$ADB_TARGET" ]; then
-  adb_dev install -r "$OUT/$ID.apk"
+  adb_dev install -r "$APK"
   echo "installed to $ADB_TARGET"
 fi

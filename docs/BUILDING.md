@@ -57,11 +57,16 @@ No `R.java` is generated, because the Java source never references a resource. O
 
 ### Target parsing
 
-`<target>` is normalised before anything is built. A bare id is used as-is; a URL is
+`<target>` is normalised before anything is built. A channel live address
+(`/channel/UC…/live` or `/@handle/live`, where `live` is the last path segment) is
+checked first and kept as a URL, because a long-running stream gets a new video id
+every time it restarts. `/live/<video id>` is a single video and takes the normal path.
+
+Otherwise, a bare id is used as-is; a URL is
 scraped for `list=` first and `v=` / `/live/` / `/shorts/` / `/embed/` / `youtu.be/`
 second, so a watch URL carrying a playlist becomes a playlist tile. A channel id
 (`UC…`) is rewritten to its uploads playlist (`UU…`) by swapping the two-character
-prefix, which is a documented YouTube convention and needs no API call.
+prefix, which is a long-standing YouTube convention and needs no API call.
 
 Inspect the result without building:
 
@@ -78,6 +83,8 @@ URL exits non-zero rather than quietly building a tile that goes nowhere.
 A playlist has no thumbnail of its own, so the build fetches the playlist page and
 uses its **first entry's** thumbnail. That is one `curl` and one `grep`, and it means
 a channel tile shows whatever that channel posted most recently at build time.
+A live tile uses the thumbnail of whatever is live at build time, or of any video on
+the channel page if nothing is.
 
 `https://i.ytimg.com/vi/<video_id>/mqdefault.jpg` is served at **exactly 320x180**, which is the Android TV banner size. That means no image library, no resizing step, and no dependency on ImageMagick or Pillow.
 

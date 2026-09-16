@@ -1,6 +1,6 @@
 # tv_youtube_shortcut
 
-Put a tile on your TV's home screen that opens **one specific YouTube video, playlist or channel**, instantly, with no navigating, searching or scrolling.
+Put a tile on your TV's home screen that opens **one specific YouTube video, playlist, channel or live stream**, instantly, with no navigating, searching or scrolling.
 
 Hand it a link and a label, and it builds a ~25 KB Android TV app whose entire job is to fire one intent and exit. Install it once and it behaves like any other app on the home screen: it survives reboots, needs no PC, no network pairing and no companion service.
 
@@ -10,6 +10,7 @@ Built for a toddler who wants the same thing every time and cannot read a search
 ./setup_toolchain.sh                                            # one time
 ./build_shortcut.sh dQw4w9WgXcQ "Never Gonna"                   # a video
 ./build_shortcut.sh UCG2CL6EUjG8TVT1Tpl9nJdg "Ms Rachel"        # a whole channel
+./build_shortcut.sh "https://www.youtube.com/channel/UCG2CL6EUjG8TVT1Tpl9nJdg/live" "Ms Rachel Live"   # its live stream
 ```
 
 Then sideload the APK. See **[docs/SIDELOADING.md](docs/SIDELOADING.md)** for your device.
@@ -27,10 +28,13 @@ An APK sidesteps both. ADB is only involved at install time, and only if you cho
 
 ---
 
-## Videos, playlists and channels
+## Videos, playlists, channels and live streams
 
 > [!TIP]
-> **Prefer a playlist or a channel over a single video.** A single video can be deleted, go private, or, in the case of a livestream, simply end. When that happens the tile still launches YouTube but shows *"This live stream recording is not available"* and plays nothing. A playlist keeps working as its contents change, and a channel's uploads playlist refills itself every time the creator posts.
+> **Avoid pinning a tile to a single video id.** A video can be deleted or go private. A live stream is worse: "24/7" streams are really a series of long streams, and **each restart gets a new video id**. When the old one ends, the tile still launches YouTube but shows *"This live stream recording is not available"* and plays nothing.
+>
+> - For a live channel, use its **live address** (`/channel/UC.../live`). YouTube resolves it to whatever is live when the tile is pressed.
+> - For recorded content, use a **playlist**, or a channel's uploads playlist, which refills itself every time the creator posts.
 
 `<target>` accepts any of these:
 
@@ -40,12 +44,16 @@ An APK sidesteps both. ADB is only involved at install time, and only if you cho
 | `PLxxxx…` / `UUxxxx…` | That playlist, starting at its first entry |
 | `UCxxxx…` (a channel id) | That channel's uploads playlist, i.e. everything it posts |
 | `https://www.youtube.com/watch?v=…` | The video |
-| `https://www.youtube.com/live/…` | The stream |
+| `https://www.youtube.com/live/<video id>` | That one stream. It stops working when the stream ends |
+| `https://www.youtube.com/channel/UC…/live` | Whatever that channel has live when the tile is pressed |
+| `https://www.youtube.com/@handle/live` | Same, by handle. Only the channel-id form has been tested on a TV |
 | `https://youtu.be/…`, `/shorts/…`, `/embed/…` | The video |
 | `https://www.youtube.com/playlist?list=…` | The playlist |
 | `https://www.youtube.com/watch?v=…&list=…` | The **playlist**, not the single video |
 
 That last row is deliberate. If a URL carries a `list=`, you almost certainly want the playlist tile.
+
+Live-address tiles were tested on an onn 4K Pro: pressing the tile played the channel's current stream at the live edge. **What they show when the channel has nothing live is untested**, so pair one with an uploads-playlist tile for the gaps.
 
 Playlist and channel tiles start at the first entry and continue through it. To find a channel id, open the channel page and search the HTML for `externalId`, or just paste any of its video URLs and use the playlist form instead.
 
@@ -104,6 +112,9 @@ Examples:
 # an entire channel's uploads, built and installed over the network
 ./build_shortcut.sh UCG2CL6EUjG8TVT1Tpl9nJdg "Ms Rachel" 192.168.1.50:5555
 
+# a channel's live stream, which keeps working when the stream restarts
+./build_shortcut.sh "https://www.youtube.com/channel/UCG2CL6EUjG8TVT1Tpl9nJdg/live" "Ms Rachel Live" 192.168.1.50:5555
+
 # paste a URL straight from the address bar
 ./build_shortcut.sh "https://www.youtube.com/playlist?list=PLxxxx" "Bedtime" 192.168.1.50:5555
 
@@ -143,11 +154,11 @@ If the pinned package is wrong for the device, the app falls back to an unpinned
 ./test_parse.sh
 ```
 
-Covers target parsing: bare ids, every URL shape, playlist-beats-video precedence, channel-to-uploads conversion, and that an unparseable URL fails loudly instead of building a broken tile.
+Covers target parsing: bare ids, every URL shape, playlist-beats-video precedence, channel-to-uploads conversion, channel live addresses versus `/live/<video id>`, and that an unparseable URL fails loudly instead of building a broken tile.
 
 ## Prebuilt example
 
-The [Releases](../../releases) page has a prebuilt example APK so you can try the mechanism without setting up a toolchain. It opens the Ms Rachel uploads playlist and targets the Google TV client. For your own target, build your own - it takes one command.
+The [Releases](../../releases) page has prebuilt example APKs so you can try the mechanism without setting up a toolchain. v1.2.0 has one that opens the Ms Rachel channel's current live stream, and v1.1.0 one that opens her uploads playlist. Both target the Google TV client. For your own target, build your own - it takes one command.
 
 ## Notes on signing
 
