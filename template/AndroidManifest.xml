@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="__PKG__"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <!-- Android 11+ package visibility. Without this, setClassName into another
+         package throws ActivityNotFoundException and the tile silently does nothing.
+         This must name the same package the intent is pinned to. -->
+    <queries>
+        <package android:name="__YT_PKG__" />
+    </queries>
+
+    <application
+        android:label="__LABEL__"
+        android:banner="@drawable/banner"
+        android:icon="@drawable/banner"
+        android:isGame="false"
+        android:allowBackup="false">
+        <activity
+            android:name="shortcut.MainActivity"
+            android:exported="true"
+            android:label="__LABEL__"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
