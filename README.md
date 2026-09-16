@@ -1,14 +1,15 @@
 # tv_youtube_shortcut
 
-Put a tile on your TV's home screen that opens **one specific YouTube video**, instantly, with no navigating, searching or scrolling.
+Put a tile on your TV's home screen that opens **one specific YouTube video, playlist or channel**, instantly, with no navigating, searching or scrolling.
 
-Hand it a video id and a label, and it builds a ~25 KB Android TV app whose entire job is to fire one intent and exit. Install it once and it behaves like any other app on the home screen: it survives reboots, needs no PC, no network pairing and no companion service.
+Hand it a link and a label, and it builds a ~25 KB Android TV app whose entire job is to fire one intent and exit. Install it once and it behaves like any other app on the home screen: it survives reboots, needs no PC, no network pairing and no companion service.
 
-Built for a toddler who wants the same video every time and cannot read a search box. Works just as well for a workout video, a fireplace loop, a livestream, or a white-noise track.
+Built for a toddler who wants the same thing every time and cannot read a search box. Works just as well for a workout playlist, a fireplace loop, a livestream, or white noise.
 
 ```bash
-./setup_toolchain.sh                                    # one time
-./build_shortcut.sh dQw4w9WgXcQ "Never Gonna"           # builds out/dQw4w9WgXcQ.apk
+./setup_toolchain.sh                                            # one time
+./build_shortcut.sh dQw4w9WgXcQ "Never Gonna"                   # a video
+./build_shortcut.sh UCG2CL6EUjG8TVT1Tpl9nJdg "Ms Rachel"        # a whole channel
 ```
 
 Then sideload the APK. See **[docs/SIDELOADING.md](docs/SIDELOADING.md)** for your device.
@@ -23,6 +24,30 @@ The obvious approach is to enable ADB and fire an intent. That launches the vide
 2. **Wireless debugging does not survive a reboot**, and its ports rotate every time. Anything driven by an ADB command from a PC breaks on every power cycle.
 
 An APK sidesteps both. ADB is only involved at install time, and only if you choose to install that way.
+
+---
+
+## Videos, playlists and channels
+
+> [!TIP]
+> **Prefer a playlist or a channel over a single video.** A single video can be deleted, go private, or, in the case of a livestream, simply end. When that happens the tile still launches YouTube but shows *"This live stream recording is not available"* and plays nothing. A playlist keeps working as its contents change, and a channel's uploads playlist refills itself every time the creator posts.
+
+`<target>` accepts any of these:
+
+| You pass | You get |
+|---|---|
+| `dQw4w9WgXcQ` | That one video |
+| `PLxxxx…` / `UUxxxx…` | That playlist, starting at its first entry |
+| `UCxxxx…` (a channel id) | That channel's uploads playlist, i.e. everything it posts |
+| `https://www.youtube.com/watch?v=…` | The video |
+| `https://www.youtube.com/live/…` | The stream |
+| `https://youtu.be/…`, `/shorts/…`, `/embed/…` | The video |
+| `https://www.youtube.com/playlist?list=…` | The playlist |
+| `https://www.youtube.com/watch?v=…&list=…` | The **playlist**, not the single video |
+
+That last row is deliberate. If a URL carries a `list=`, you almost certainly want the playlist tile.
+
+Playlist and channel tiles start at the first entry and continue through it. To find a channel id, open the channel page and search the HTML for `externalId`, or just paste any of its video URLs and use the playlist form instead.
 
 ---
 
@@ -54,41 +79,39 @@ An APK sidesteps both. ADB is only involved at install time, and only if you cho
 ## Usage
 
 ```
-./build_shortcut.sh <video_id> <label> [adb_target]
+./build_shortcut.sh <target> <label> [adb_target]
+./build_shortcut.sh --print-url <target>          # show how a target parses, build nothing
 ```
 
 | Argument | Meaning |
 |---|---|
-| `video_id` | The 11-character id, e.g. `dQw4w9WgXcQ` |
+| `target` | A video id, playlist id, channel id, or any YouTube URL (see above) |
 | `label` | Text shown under the tile, e.g. `"Ms Rachel"` |
 | `adb_target` | Optional `ip:port`. If given, the APK is installed over ADB after building |
 
-The video id is the part after `v=`, or after `/live/`, or after `youtu.be/`. Tracking parameters like `?si=...` are not needed.
-
 | Environment variable | Default | Purpose |
 |---|---|---|
-| `YT_TARGET` | Google TV client | `<package>/<activity>` to hand the video to. Use `auto` to detect it from a connected device |
+| `YT_TARGET` | Google TV client | `<package>/<activity>` to hand the link to. Use `auto` to detect it from a connected device |
 | `SDK_DIR` | `~/android_sdk` | Where build-tools and platforms live |
 | `ADB` | `~/platform_tools/adb` | adb binary |
 
 Examples:
 
 ```bash
-# Google TV / Android TV, build only
+# a single video, build only
 ./build_shortcut.sh dQw4w9WgXcQ "Never Gonna"
 
-# build and install over the network
-./build_shortcut.sh dQw4w9WgXcQ "Never Gonna" 192.168.1.50:5555
+# an entire channel's uploads, built and installed over the network
+./build_shortcut.sh UCG2CL6EUjG8TVT1Tpl9nJdg "Ms Rachel" 192.168.1.50:5555
 
-# Fire TV
-YT_TARGET=com.amazon.firetv.youtube/com.amazon.firetv.youtube.MainActivity \
-  ./build_shortcut.sh dQw4w9WgXcQ "Never Gonna" 192.168.1.50:5555
+# paste a URL straight from the address bar
+./build_shortcut.sh "https://www.youtube.com/playlist?list=PLxxxx" "Bedtime" 192.168.1.50:5555
 
-# let the script work out the right client from the device itself
-YT_TARGET=auto ./build_shortcut.sh dQw4w9WgXcQ "Never Gonna" 192.168.1.50:5555
+# Fire TV: let the script work out the right client from the device itself
+YT_TARGET=auto ./build_shortcut.sh PLxxxx "Workouts" 192.168.1.50:5555
 ```
 
-Each video gets its own package name derived from its id, so any number of tiles coexist.
+Each target gets its own package name derived from its id, so any number of tiles coexist.
 
 ---
 
@@ -114,9 +137,17 @@ If the pinned package is wrong for the device, the app falls back to an unpinned
 - **[docs/BUILDING.md](docs/BUILDING.md)** - toolchain setup, what the build actually does, why there is no Gradle
 - **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - every failure mode hit while building this, with fixes
 
+## Tests
+
+```bash
+./test_parse.sh
+```
+
+Covers target parsing: bare ids, every URL shape, playlist-beats-video precedence, channel-to-uploads conversion, and that an unparseable URL fails loudly instead of building a broken tile.
+
 ## Prebuilt example
 
-The [Releases](../../releases) page has a prebuilt example APK so you can try the mechanism without setting up a toolchain. It is hardcoded to one specific children's video and targets the Google TV client, so it is a demo of the *shape* of the thing. For your own video, build your own.
+The [Releases](../../releases) page has a prebuilt example APK so you can try the mechanism without setting up a toolchain. It opens the Ms Rachel uploads playlist and targets the Google TV client. For your own target, build your own - it takes one command.
 
 ## Notes on signing
 

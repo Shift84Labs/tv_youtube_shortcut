@@ -14,6 +14,7 @@ Every failure below was hit while building this, not imagined.
 | `adb pair` hangs forever | Used the connect port, or the code expired | Re-read both ports, keep the pairing screen open |
 | `sdkmanager` download 404s | Stale cmdline-tools build number | Skip it, resolve names from `repository2-3.xml` |
 | `aapt add -q` → "Unknown flag" | `aapt` v1 has no `-q`, unlike `aapt2` | Drop the flag |
+| Tile launches YouTube but plays nothing | The video/stream was deleted, went private, or a livestream ended | Rebuild against a playlist or channel instead |
 | Tile missing from home screen | Appended to the end of the apps row | Scroll right; use Reorder / Move to Front |
 | Cannot reach the device after a reboot | Wireless debugging ports rotate | Re-pair. Installed tiles are unaffected |
 
@@ -41,6 +42,37 @@ adb shell cmd package resolve-activity -a android.intent.action.VIEW \
 If that prints `com.android.internal.app.ResolverActivity`, the intent is unpinned and the system is asking the user to choose.
 
 On **Fire TV** this shows up differently: the Google package does not exist at all, so a default-target build falls back to the chooser (or to nothing, if no app claims the URL). Rebuild with `YT_TARGET=auto` or Amazon's package.
+
+## The tile launches YouTube but nothing plays
+
+The app opens and you get **"Something went wrong - This live stream recording is not available"**, or a blank video page. `dumpsys media_session` shows no session for YouTube at all.
+
+The target itself is gone. Most often:
+
+- a **livestream ended** and the creator did not keep the recording
+- the video was deleted or set to private
+- the video became region-locked
+
+Confirm from any machine, no TV needed:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" \
+  "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=<video_id>&format=json"
+```
+
+`404` means it is gone outright. Note that a **200 does not mean it is playable**: an ended livestream keeps its oEmbed metadata while the recording itself is unavailable, so check the TV or the watch page too.
+
+**The fix is to stop pointing at a single video.** Build against a playlist, or a channel's uploads playlist, which keeps working as its contents change:
+
+```bash
+./build_shortcut.sh UCxxxxxxxxxxxxxxxxxxxxxx "Label" <ip>:<port>
+```
+
+Then remove the dead tile:
+
+```bash
+adb uninstall dev.shift84labs.ytshortcut.v<video_id>
+```
 
 ## The tile installs but does nothing when pressed
 

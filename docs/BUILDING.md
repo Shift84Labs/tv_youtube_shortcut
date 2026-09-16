@@ -55,7 +55,29 @@ For each shortcut, in a temp directory:
 
 No `R.java` is generated, because the Java source never references a resource. Only the manifest does, via `@drawable/banner`.
 
+### Target parsing
+
+`<target>` is normalised before anything is built. A bare id is used as-is; a URL is
+scraped for `list=` first and `v=` / `/live/` / `/shorts/` / `/embed/` / `youtu.be/`
+second, so a watch URL carrying a playlist becomes a playlist tile. A channel id
+(`UC…`) is rewritten to its uploads playlist (`UU…`) by swapping the two-character
+prefix, which is a documented YouTube convention and needs no API call.
+
+Inspect the result without building:
+
+```bash
+./build_shortcut.sh --print-url "https://www.youtube.com/watch?v=abc&list=PLxyz"
+# playlist PLxyz https://www.youtube.com/playlist?list=PLxyz
+```
+
+`./test_parse.sh` asserts all of the above, including that an unparseable YouTube
+URL exits non-zero rather than quietly building a tile that goes nowhere.
+
 ### The icon
+
+A playlist has no thumbnail of its own, so the build fetches the playlist page and
+uses its **first entry's** thumbnail. That is one `curl` and one `grep`, and it means
+a channel tile shows whatever that channel posted most recently at build time.
 
 `https://i.ytimg.com/vi/<video_id>/mqdefault.jpg` is served at **exactly 320x180**, which is the Android TV banner size. That means no image library, no resizing step, and no dependency on ImageMagick or Pillow.
 

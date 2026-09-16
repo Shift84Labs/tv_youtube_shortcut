@@ -8,7 +8,7 @@ import android.os.Bundle;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    private static final String URL = "https://www.youtube.com/watch?v=__VIDEO_ID__";
+    private static final String URL = "__URL__";
     private static final String YT_PKG = "__YT_PKG__";
     private static final String YT_ACT = "__YT_ACT__";
 
